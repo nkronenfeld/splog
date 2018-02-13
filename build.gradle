@@ -179,6 +179,12 @@ dependencies {
   provided "org.apache.spark:spark-core_${scalaBinaryVersion}:${sparkVersion}"
   provided "org.apache.spark:spark-sql_${scalaBinaryVersion}:${sparkVersion}"
 
+  // spark testing
+  testCompile "org.apache.spark:spark-core_${scalaBinaryVersion}:${sparkVersion}:tests"
+  testCompile "org.apache.spark:spark-sql_${scalaBinaryVersion}:${sparkVersion}:tests"
+  // sadly, maven-style dependencies are not transitive, so we have to include this manually
+  testCompile "org.apache.spark:spark-catalyst_${scalaBinaryVersion}:${sparkVersion}:tests"
+
   // Uncomment as needed
   // provided "org.apache.spark:spark-streaming_${scalaBinaryVersion}:${sparkVersion}"
   // provided "org.apache.spark:spark-graphx_${scalaBinaryVersion}:${sparkVersion}"

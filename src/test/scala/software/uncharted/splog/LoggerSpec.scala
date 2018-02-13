@@ -16,17 +16,24 @@
 
 package software.uncharted.splog
 
+import org.apache.spark.SharedSparkContext
 import org.scalatest._
 import org.scalatest.Assertions._
 
-class LoggerSpec extends FunSpec with BeforeAndAfter with BeforeAndAfterEach with Matchers {
-
-  val rdd = Spark.sc.parallelize(Seq(
-    (0, "first"),
-    (1, "second"),
-    (2, "third"),
-    (3, "fourth")
-  ))
+class LoggerSpec extends FunSpec
+  with BeforeAndAfter
+  with BeforeAndAfterEach
+  with Matchers
+  with SharedSparkContext
+{
+  private def getRDD = {
+    sc.parallelize(Seq(
+      (0, "first"),
+      (1, "second"),
+      (2, "third"),
+      (3, "fourth")
+    ))
+  }
 
   var baos = new java.io.ByteArrayOutputStream
 
@@ -59,7 +66,7 @@ class LoggerSpec extends FunSpec with BeforeAndAfter with BeforeAndAfterEach wit
 
     it("Should support logging inside transformations") {
       val logger = LoggerFactory.getLogger("test")
-      rdd.map(r => {
+      getRDD.map(r => {
         logger.info(r._2)
         r
       }).collect
@@ -91,7 +98,7 @@ class LoggerSpec extends FunSpec with BeforeAndAfter with BeforeAndAfterEach wit
     }
 
     it("Should throw an Exception if the client tries to retrieve a logger inside a Spark TaskContext") {
-      val errors = rdd.flatMap(r => {
+      val errors = getRDD.flatMap(r => {
         try {
           val logger = LoggerFactory.getLogger("test")
           Seq()
@@ -103,7 +110,7 @@ class LoggerSpec extends FunSpec with BeforeAndAfter with BeforeAndAfterEach wit
     }
 
     it("Should support the manual specification of the driver host") {
-      val driverHost = Spark.sc.getConf.get("spark.driver.host")
+      val driverHost = sc.getConf.get("spark.driver.host")
       val logger = LoggerFactory.getLogger("test", Some(driverHost))
       LoggerFactory.setLevel(Level.OFF)
       logger.trace("Hello world!")
