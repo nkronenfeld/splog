@@ -16,12 +16,14 @@
 
 package software.uncharted.splog
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, PrintStream}
+
+import scala.collection.JavaConverters._
+import org.apache.log4j.{Appender, Level}
 import org.apache.spark.SharedSparkContext
 import org.scalatest._
-import org.scalatest.Assertions._
 
 class LoggerSpec extends FunSpec
-  with BeforeAndAfter
   with BeforeAndAfterEach
   with Matchers
   with SharedSparkContext
@@ -35,33 +37,41 @@ class LoggerSpec extends FunSpec
     ))
   }
 
-  var baos = new java.io.ByteArrayOutputStream
-
-  before {
-  }
+  private var standardAppenders: Array[Appender] = null
+  private var testAppender: TestAppender = null
 
   override def beforeEach {
-    baos = new java.io.ByteArrayOutputStream
-    LoggerFactory.start(new java.io.PrintStream(baos))
+    val rootLogger = org.apache.log4j.Logger.getRootLogger
+    standardAppenders = rootLogger.getAllAppenders.asScala.filter(_.isInstanceOf[Appender]).map(_.asInstanceOf[Appender]).toArray
+    testAppender = new TestAppender()
+    rootLogger.removeAllAppenders()
+    rootLogger.addAppender(testAppender)
+
+    LoggerFactory.start()
     LoggerFactory.setLevel(Level.TRACE)
+    super.beforeEach()
   }
 
   override def afterEach {
     LoggerFactory.shutdown()
     Thread.sleep(200)
-    baos.close
-  }
 
-  after {
+    val rootLogger = org.apache.log4j.Logger.getRootLogger
+    rootLogger.removeAllAppenders()
+    standardAppenders.foreach(appender => rootLogger.addAppender(appender))
+    standardAppenders = null
+    testAppender = null
+
+    super.afterEach()
   }
 
   describe("splog.Logger") {
     it("Should support logging outside transformations") {
       val logger = LoggerFactory.getLogger("test")
       logger.info("Hello world!")
-      Thread.sleep(200)
-      val log = baos.toString
-      log should include ("[INFO] test: Hello world!")
+
+      val log = testAppender.getCurrentOutput
+      log should include("[INFO] test: Hello world!")
     }
 
     it("Should support logging inside transformations") {
@@ -70,8 +80,8 @@ class LoggerSpec extends FunSpec
         logger.info(r._2)
         r
       }).collect
-      Thread.sleep(200)
-      val log = baos.toString
+
+      val log = testAppender.getCurrentOutput
       log should include ("[INFO] test: first")
       log should include ("[INFO] test: second")
       log should include ("[INFO] test: third")
@@ -82,8 +92,8 @@ class LoggerSpec extends FunSpec
       val logger = LoggerFactory.getLogger("test")
       logger.info(1234)
       logger.info(1.234F)
-      Thread.sleep(200)
-      val log = baos.toString
+
+      val log = testAppender.getCurrentOutput
       log should include ("[INFO] test: 1234")
       log should include ("[INFO] test: 1.234")
     }
@@ -92,8 +102,8 @@ class LoggerSpec extends FunSpec
       val logger = LoggerFactory.getLogger("test")
       LoggerFactory.setLevel(Level.OFF)
       logger.trace("Hello world!")
-      Thread.sleep(200)
-      val log = baos.toString
+
+      val log = testAppender.getCurrentOutput
       log should not include ("[TRACE] test: Hello world!")
     }
 
@@ -114,8 +124,8 @@ class LoggerSpec extends FunSpec
       val logger = LoggerFactory.getLogger("test", Some(driverHost))
       LoggerFactory.setLevel(Level.OFF)
       logger.trace("Hello world!")
-      Thread.sleep(200)
-      val log = baos.toString
+
+      val log = testAppender.getCurrentOutput
       log should not include ("[TRACE] test: Hello world!")
     }
 
@@ -123,8 +133,8 @@ class LoggerSpec extends FunSpec
       LoggerFactory.start()
       val logger = LoggerFactory.getLogger("test")
       logger.info("Hello world!")
-      Thread.sleep(200)
-      val log = baos.toString
+
+      val log = testAppender.getCurrentOutput
       log should include ("[INFO] test: Hello world!")
     }
 
@@ -137,7 +147,6 @@ class LoggerSpec extends FunSpec
       intercept[Exception] {
         val logger = LoggerFactory.getLogger("test")
         LoggerFactory.shutdown()
-        Thread.sleep(200)
         logger.trace("Hello world!")
       }
     }
@@ -146,16 +155,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level TRACE") {
         val logger = LoggerFactory.getLogger("test")
         logger.trace("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[TRACE] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level TRACE") {
         val logger = LoggerFactory.getLogger("test")
         logger.trace("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[TRACE] test: Hello world!")
         log should include ("whoops!")
       }
@@ -165,16 +174,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level DEBUG") {
         val logger = LoggerFactory.getLogger("test")
         logger.debug("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[DEBUG] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level DEBUG") {
         val logger = LoggerFactory.getLogger("test")
         logger.debug("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[DEBUG] test: Hello world!")
         log should include ("whoops!")
       }
@@ -184,16 +193,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level INFO") {
         val logger = LoggerFactory.getLogger("test")
         logger.info("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[INFO] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level INFO") {
         val logger = LoggerFactory.getLogger("test")
         logger.info("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[INFO] test: Hello world!")
         log should include ("whoops!")
       }
@@ -203,16 +212,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level WARN") {
         val logger = LoggerFactory.getLogger("test")
         logger.warn("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[WARN] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level WARN") {
         val logger = LoggerFactory.getLogger("test")
         logger.warn("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[WARN] test: Hello world!")
         log should include ("whoops!")
       }
@@ -222,16 +231,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level ERROR") {
         val logger = LoggerFactory.getLogger("test")
         logger.error("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[ERROR] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level ERROR") {
         val logger = LoggerFactory.getLogger("test")
         logger.error("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[ERROR] test: Hello world!")
         log should include ("whoops!")
       }
@@ -241,16 +250,16 @@ class LoggerSpec extends FunSpec
       it("Should allow logging of messages with level FATAL") {
         val logger = LoggerFactory.getLogger("test")
         logger.fatal("Hello world!")
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[FATAL] test: Hello world!")
       }
 
       it("Should allow logging of messages and errors with level FATAL") {
         val logger = LoggerFactory.getLogger("test")
         logger.fatal("Hello world!", new Exception("whoops!"))
-        Thread.sleep(200)
-        val log = baos.toString
+
+        val log = testAppender.getCurrentOutput
         log should include ("[FATAL] test: Hello world!")
         log should include ("whoops!")
       }
