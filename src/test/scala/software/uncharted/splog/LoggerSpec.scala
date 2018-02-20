@@ -37,14 +37,13 @@ class LoggerSpec extends FunSpec
     ))
   }
 
-  private var standardAppenders: Array[Appender] = null
   private var testAppender: TestAppender = null
 
   override def beforeEach {
     val rootLogger = org.apache.log4j.Logger.getRootLogger
-    standardAppenders = rootLogger.getAllAppenders.asScala.filter(_.isInstanceOf[Appender]).map(_.asInstanceOf[Appender]).toArray
     testAppender = new TestAppender()
-    rootLogger.removeAllAppenders()
+    // Uncomment to reduce test-time spam
+    // rootLogger.removeAllAppenders()
     rootLogger.addAppender(testAppender)
 
     LoggerFactory.start()
@@ -57,9 +56,7 @@ class LoggerSpec extends FunSpec
     Thread.sleep(200)
 
     val rootLogger = org.apache.log4j.Logger.getRootLogger
-    rootLogger.removeAllAppenders()
-    standardAppenders.foreach(appender => rootLogger.addAppender(appender))
-    standardAppenders = null
+    rootLogger.removeAppender(testAppender)
     testAppender = null
 
     super.afterEach()
