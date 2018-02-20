@@ -15,7 +15,7 @@ project.ext {
   scalaBinaryVersion = '2.11'
   scalaVersion = '2.11.12'
   fabricatorVersion = '2.1.3'
-  sparkVersion = System.getenv("SPARK_VERSION") ?: '2.2.1'
+  sparkVersion = System.getenv("SPARK_VERSION") ?: '2.0.1'
   scoverageVersion = '1.1.1'
   scalatestVersion = '2.2.6'
   pegdownVersion = '1.6.0'
@@ -117,31 +117,9 @@ task testJar(type: Jar) {
   from sourceSets.test.output
 }
 
-task startTestEnv(overwrite: true, type: Exec) {
-  executable = './test-environment.sh'
-  args = ["start"]
-}
-
-task stopTestEnv(overwrite: true, type: Exec) {
-  executable = './test-environment.sh'
-  args = ["stop"]
-}
-
-task test(overwrite: true, type: Exec, dependsOn: [startTestEnv, jar, jarScoverage, testJar, docsJar, depsJar, scalaStyle]) {
-  executable = 'docker'
-  args = ["exec", project.name, "spark-submit", "--conf", "spark.ui.showConsoleProgress=false", "--packages", packages,"--jars","build/libs/${artifactName}-${version}-scoverage.jar,build/libs/${artifactName}-${version}-dependencies.jar","--class","software.uncharted.splog.TestRunner","build/libs/${artifactName}-${version}-tests.jar"]
-}
-// test.finalizedBy stopTestEnv // this does slow down development, so we'll make it manual instead of automatic
-
-task debug(overwrite: true, type: Exec, dependsOn: [startTestEnv, jar, jarScoverage, testJar, docsJar, depsJar, scalaStyle]) {
-  executable = 'docker'
-  args = ["exec", project.name, "/bin/bash", "-c", "export SPARK_JAVA_OPTS=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9999\" && spark-submit --conf spark.ui.showConsoleProgress=false --packages ${packages} --jars build/libs/${artifactName}-${version}-scoverage.jar,build/libs/${artifactName}-${version}-dependencies.jar --class software.uncharted.flute.TestRunner build/libs/${artifactName}-${version}-tests.jar"]
-}
-// debug.finalizedBy stopTestEnv // this does slow down development, so we'll make it manual instead of automatic
-
-task run(overwrite: true, type: Exec, dependsOn: [startTestEnv, jar, jarScoverage, testJar, docsJar, depsJar, scalaStyle]) {
-  executable = 'docker'
-  args = ["exec", project.name, "spark-submit", "--conf", "spark.ui.showConsoleProgress=false", "--packages", runPackages,"--jars","build/libs/${artifactName}-${version}-dependencies.jar","--class","software.uncharted.flute.munger.Main","build/libs/${artifactName}-${version}.jar"]
+test {
+	// Spark testing framework only handles one test at a time
+	maxParallelForks = 1
 }
 
 task coverage(overwrite: true, dependsOn: test) << {
